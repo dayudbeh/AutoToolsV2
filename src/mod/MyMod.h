@@ -1,30 +1,23 @@
 #pragma once
-
-#include <optional>
-
-#include "mod/Config.h"
-
 #include <pl/Mod.hpp>
 
-namespace clange_me {
+class MyMod {
+public:
+    static MyMod& instance() {
+        static MyMod inst;
+        return inst;
+    }
 
-class ClangeMeMod {
-  public:
-    static ClangeMeMod &instance();
-
-    ClangeMeMod();
-
-    [[nodiscard]] ll::mod::NativeMod &getSelf() const { return mSelf; }
+    MyMod();
+    [[nodiscard]] ll::mod::NativeMod& getSelf() const { return mSelf; }
 
     bool load();
     bool enable();
     bool disable();
     bool unload();
 
-  private:
-    ll::mod::NativeMod &mSelf;
-    ModConfig mConfig;
-    std::optional<pl::config::ConfigFile<ModConfig>> mConfigFile;
+private:
+    ll::mod::NativeMod& mSelf;
 };
 
-} // namespace clange_me
+PL_REGISTER_MOD(MyMod, MyMod::instance())
