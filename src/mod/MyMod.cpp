@@ -1,42 +1,37 @@
-cmake_minimum_required(VERSION 3.22)
-project(MeuAutoTool LANGUAGES CXX)
+#include "MyMod.h"
+#include <pl/memory/Signature.hpp>
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+// Assinatura extraída do mod original para troca de slot
+constexpr const char* SIG_INVENTORY_SELECT = "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? 91 5B D0 3B D5 F3 03 08 AA F5 03 02 2A";
 
-include(FetchContent)
+MyMod::MyMod() : mSelf(*ll::mod::NativeMod::current()) {}
 
-# 1. Baixa a biblioteca fmt (dependência do Preloader para logs)
-FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 11.0.2
-)
-FetchContent_MakeAvailable(fmt)
+bool MyMod::load() {
+    getSelf().getLogger().info("AutoTool carregado com sucesso!");
+    return true;
+}
 
-# 2. Baixa o SDK do Preloader
-FetchContent_Declare(
-    preloader_android
-    GIT_REPOSITORY https://github.com/LiteLDev/preloader-android.git
-    GIT_TAG 0.2.2
-    SOURCE_SUBDIR cmake/preloader-sdk
-)
-FetchContent_MakeAvailable(preloader_android)
+bool MyMod::enable() {
+    auto& logger = getSelf().getLogger();
+    
+    // Tenta encontrar a função de troca de slot no binário do Minecraft
+    uintptr_t addrSelectSlot = pl::memory::resolveSignature(SIG_INVENTORY_SELECT, "libminecraftpe.so");
+    
+    if (addrSelectSlot != 0) {
+        logger.info("InventorySelectSlot encontrada no endereco: {:#x}", addrSelectSlot);
+    } else {
+        logger.warn("InventorySelectSlot NAO encontrada. Verifique a versao do jogo.");
+    }
 
-# 3. Cria a biblioteca do mod
-add_library(MeuAutoTool SHARED src/main.cpp)
+    logger.info("AutoTool ativado e pronto para uso.");
+    return true;
+}
 
-# 4. Define os caminhos de include do Preloader e do fmt
-target_include_directories(MeuAutoTool PRIVATE 
-    "${preloader_android_SOURCE_DIR}/include"
-    "${fmt_SOURCE_DIR}/include"
-)
+bool MyMod::disable() {
+    getSelf().getLogger().info("AutoTool desativado.");
+    return true;
+}
 
-# 5. Linka com o Preloader, fmt e a biblioteca de log do Android
-target_link_libraries(MeuAutoTool PRIVATE preloader fmt::fmt log)
-
-# 6. Flags de otimizacao e visibilidade
-target_compile_options(MeuAutoTool PRIVATE -fvisibility=hidden -Oz -ffunction-sections -fdata-sections)
-target_link_options(MeuAutoTool PRIVATE -Wl,--gc-sections -Wl,--strip-all)
+bool MyMod::unload() {
+    return true;
+}
