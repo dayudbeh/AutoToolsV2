@@ -35,3 +35,6 @@ bool MyMod::disable() {
 bool MyMod::unload() {
     return true;
 }
+
+// A macro de registro deve ficar APENAS no arquivo .cpp
+PL_REGISTER_MOD(MyMod, MyMod::instance())
