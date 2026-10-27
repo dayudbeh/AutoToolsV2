@@ -2,33 +2,35 @@
 #include <pl/memory/Signature.hpp>
 #include <pl/memory/Hook.hpp>
 
-// Assinaturas extraídas do mod original
+// --- ASSINATURAS REAIS EXTRAÍDAS DO MOD ORIGINAL ---
 constexpr const char* SIG_INVENTORY_SELECT = "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? A9 ?? ?? ?? 91 5B D0 3B D5 F3 03 08 AA F5 03 02 2A";
-// (Assinaturas genéricas para teste de hook - usaremos padrões conhecidos do Bedrock)
-constexpr const char* SIG_SURVIVAL_DESTROY = "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 5B D0 3B D5 F3 03 08 AA F5 03 02 2A"; // Placeholder ajustado
-constexpr const char* SIG_CREATIVE_DESTROY = "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? 57 D0 3B D5 F6 03 00 AA"; // Placeholder ajustado
+constexpr const char* SIG_SURVIVAL_DESTROY = "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? F9 ?? ?? ?? 91 53 D0 3B D5 E8 03 00 AA ?? ?? ?? 91 ?? ?? ?? F9 ?? ?? ?? 91 ?? ?? ?? F8 ?? ?? ?? 95 ?? ?? ?? 91 ?? ?? ?? 95 ?? ?? ?? 36 ?? ?? ?? 91 ?? ?? ?? 52 ?? ?? ?? 94";
+constexpr const char* SIG_CREATIVE_DESTROY = "?? ?? ?? D1 ?? ?? ?? A9 ?? ?? ?? F9 ?? ?? ?? 91 53 D0 3B D5 E8 03 00 AA ?? ?? ?? 91 ?? ?? ?? F9 ?? ?? ?? 91 ?? ?? ?? F8 ?? ?? ?? 94 ?? ?? ?? 91 ?? ?? ?? 94 ?? ?? ?? 36 ?? ?? ?? 91 ?? ?? ?? 52";
 
 // Ponteiros para as funções originais
 void* orig_SurvivalDestroy = nullptr;
 void* orig_CreativeDestroy = nullptr;
 
-// Nossas funções de "Detour" (onde o jogo vai passar primeiro)
-bool detour_SurvivalDestroy(void* thisPtr, void* blockSource, void* blockPos, int face, void* something) {
-    // Aqui o mod acorda quando você quebra um bloco no modo Sobrevivência
-    // Por enquanto, apenas logamos que o hook funcionou
+// O ABI (argumentos) CORRETO para startDestroyBlock: this, blockPos, face, hasDestroyedBlock
+using StartDestroyFn = bool(*)(void* thisPtr, void* blockPos, unsigned char face, bool* hasDestroyedBlock);
+
+bool detour_SurvivalDestroy(void* thisPtr, void* blockPos, unsigned char face, bool* hasDestroyedBlock) {
     MyMod::instance().getSelf().getLogger().info("AutoTool: Voce comecou a quebrar um bloco (Sobrevivencia)!");
     
     // Chama a função original do jogo para o bloco quebrar normalmente
-    using Fn = bool(*)(void*, void*, void*, int, void*);
-    return reinterpret_cast<Fn>(orig_SurvivalDestroy)(thisPtr, blockSource, blockPos, face, something);
+    if (orig_SurvivalDestroy) {
+        return reinterpret_cast<StartDestroyFn>(orig_SurvivalDestroy)(thisPtr, blockPos, face, hasDestroyedBlock);
+    }
+    return false;
 }
 
-bool detour_CreativeDestroy(void* thisPtr, void* blockSource, void* blockPos, int face, void* something) {
-    // Aqui o mod acorda quando você quebra um bloco no modo Criativo
+bool detour_CreativeDestroy(void* thisPtr, void* blockPos, unsigned char face, bool* hasDestroyedBlock) {
     MyMod::instance().getSelf().getLogger().info("AutoTool: Voce comecou a quebrar um bloco (Criativo)!");
     
-    using Fn = bool(*)(void*, void*, void*, int, void*);
-    return reinterpret_cast<Fn>(orig_CreativeDestroy)(thisPtr, blockSource, blockPos, face, something);
+    if (orig_CreativeDestroy) {
+        return reinterpret_cast<StartDestroyFn>(orig_CreativeDestroy)(thisPtr, blockPos, face, hasDestroyedBlock);
+    }
+    return false;
 }
 
 MyMod::MyMod() : mSelf(*ll::mod::NativeMod::current()) {}
@@ -48,12 +50,16 @@ bool MyMod::enable() {
     
     if (addrSelectSlot != 0) {
         logger.info("InventorySelectSlot encontrada: {:#x}", addrSelectSlot);
+    } else {
+        logger.warn("InventorySelectSlot NAO encontrada.");
     }
 
-    // 2. Instala os hooks de quebra de bloco
+    // 2. Instala os hooks com as assinaturas reais
     if (addrSurvivalDestroy != 0) {
         if (pl::memory::hook((void*)addrSurvivalDestroy, (void*)detour_SurvivalDestroy, &orig_SurvivalDestroy) == 0) {
             logger.info("Hook instalado no SurvivalModeStartDestroyBlock!");
+        } else {
+            logger.error("Falha ao instalar hook no SurvivalModeStartDestroyBlock.");
         }
     } else {
         logger.warn("Assinatura SurvivalModeStartDestroyBlock nao encontrada.");
@@ -62,6 +68,8 @@ bool MyMod::enable() {
     if (addrCreativeDestroy != 0) {
         if (pl::memory::hook((void*)addrCreativeDestroy, (void*)detour_CreativeDestroy, &orig_CreativeDestroy) == 0) {
             logger.info("Hook instalado no GameModeStartDestroyBlock!");
+        } else {
+            logger.error("Falha ao instalar hook no GameModeStartDestroyBlock.");
         }
     } else {
         logger.warn("Assinatura GameModeStartDestroyBlock nao encontrada.");
