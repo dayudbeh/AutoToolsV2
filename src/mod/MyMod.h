@@ -19,5 +19,3 @@ public:
 private:
     ll::mod::NativeMod& mSelf;
 };
-
-PL_REGISTER_MOD(MyMod, MyMod::instance())
